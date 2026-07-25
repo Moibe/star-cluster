@@ -15,7 +15,8 @@
   const items = [
     { href: '/', label: 'sxm tester' },
     { href: '/batch', label: 'batch tester' },
-    { href: '/galeria', label: 'Galería' }
+    { href: '/galeria', label: 'Galería' },
+    { href: '/params', label: 'params tester' }
   ];
 
   let tiltX = $state(0);

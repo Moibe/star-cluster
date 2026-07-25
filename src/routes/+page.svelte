@@ -147,6 +147,12 @@
 		<button type="submit" disabled={cargando}>
 			{cargando ? 'Generando…' : 'Generar'}
 		</button>
+
+		{#if cargando}
+			<div class="progreso" role="progressbar" aria-label="Generando imagen">
+				<div class="progreso-barra"></div>
+			</div>
+		{/if}
 	</form>
 
 	{#if errorMsg}
@@ -265,6 +271,28 @@
 	button:disabled {
 		opacity: 0.6;
 		cursor: default;
+	}
+	.progreso {
+		margin-top: -0.2rem;
+		height: 6px;
+		border-radius: 999px;
+		overflow: hidden;
+		background: rgba(255, 255, 255, 0.15);
+	}
+	.progreso-barra {
+		height: 100%;
+		width: 40%;
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.85);
+		animation: progreso-sweep 1.1s ease-in-out infinite;
+	}
+	@keyframes progreso-sweep {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(350%);
+		}
 	}
 	.error {
 		color: #ffd3d3;

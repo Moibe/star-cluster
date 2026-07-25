@@ -1,6 +1,7 @@
-import { error } from '@sveltejs/kit';
+import { error, json } from '@sveltejs/kit';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import sharp from 'sharp';
 import type { RequestHandler } from './$types';
 import { HF_BASE } from '$lib/server/hf-sxm';
 import { STYLES } from '$lib/styleCatalog';
@@ -22,6 +23,12 @@ function sniffImage(buffer: Buffer): { ext: string; contentType: string } {
 		return { ext: 'webp', contentType: 'image/webp' };
 	}
 	return { ext: 'bin', contentType: 'application/octet-stream' };
+}
+
+async function guardar(buffer: Buffer, ext: string) {
+	const archivo = `${crypto.randomUUID()}.${ext}`;
+	await writeFile(path.join(GENERADO_DIR, archivo), buffer);
+	return archivo;
 }
 
 export const POST: RequestHandler = async ({ params, request }) => {
@@ -62,19 +69,35 @@ export const POST: RequestHandler = async ({ params, request }) => {
 		throw error(422, mensaje || `El servicio de generación falló (${hfRes.status})`);
 	}
 
-	const { ext, contentType } = sniffImage(buffer);
-	const archivo = `${crypto.randomUUID()}.${ext}`;
+	const { ext } = sniffImage(buffer);
+
+	// El space no siempre regresa 1:1 (hemos visto 1024x1024 y 1024x768 para el mismo
+	// estilo) — forzamos el cuadrado nosotros con un recorte centrado.
+	const metadata = await sharp(buffer).metadata();
+	const lado = Math.min(metadata.width ?? 0, metadata.height ?? 0);
+	const cuadradoBuffer = await sharp(buffer)
+		.extract({
+			left: Math.floor(((metadata.width ?? lado) - lado) / 2),
+			top: Math.floor(((metadata.height ?? lado) - lado) / 2),
+			width: lado,
+			height: lado
+		})
+		.toBuffer();
+
 	await mkdir(GENERADO_DIR, { recursive: true });
-	await writeFile(path.join(GENERADO_DIR, archivo), buffer);
+	const archivoOriginal = await guardar(buffer, ext);
+	const archivoCuadrado = await guardar(cuadradoBuffer, ext);
 
 	await db.insert(generaciones).values({
 		juego: 'buzito',
 		estilo,
 		parametros: JSON.stringify(parametros),
-		archivo
+		archivoOriginal,
+		archivoCuadrado
 	});
 
-	return new Response(buffer, {
-		headers: { 'content-type': contentType, 'x-archivo': archivo }
+	return json({
+		original: `/generado/${archivoOriginal}`,
+		cuadrado: `/generado/${archivoCuadrado}`
 	});
 };

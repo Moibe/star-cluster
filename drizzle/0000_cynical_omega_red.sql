@@ -3,6 +3,7 @@ CREATE TABLE `generaciones` (
 	`juego` text NOT NULL,
 	`estilo` text NOT NULL,
 	`parametros` text DEFAULT '{}' NOT NULL,
-	`archivo` text NOT NULL,
+	`archivo_original` text NOT NULL,
+	`archivo_cuadrado` text NOT NULL,
 	`creado` integer NOT NULL
 );

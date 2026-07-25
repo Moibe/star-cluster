@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3bace4f9-663e-4708-aa2b-0b2279e2c090",
+  "id": "5e0a97b9-f311-457c-a2f4-d282aa7563b2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "generaciones": {
@@ -36,8 +36,15 @@
           "autoincrement": false,
           "default": "'{}'"
         },
-        "archivo": {
-          "name": "archivo",
+        "archivo_original": {
+          "name": "archivo_original",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "archivo_cuadrado": {
+          "name": "archivo_cuadrado",
           "type": "text",
           "primaryKey": false,
           "notNull": true,

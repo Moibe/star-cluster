@@ -5,7 +5,8 @@ export const generaciones = sqliteTable('generaciones', {
 	juego: text('juego').notNull(),
 	estilo: text('estilo').notNull(),
 	parametros: text('parametros').notNull().default('{}'),
-	archivo: text('archivo').notNull(),
+	archivoOriginal: text('archivo_original').notNull(),
+	archivoCuadrado: text('archivo_cuadrado').notNull(),
 	creado: integer('creado', { mode: 'timestamp' })
 		.notNull()
 		.$defaultFn(() => new Date())

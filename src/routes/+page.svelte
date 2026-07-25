@@ -9,8 +9,8 @@
 	let valoresParam: Record<string, string> = $state({});
 	let cargando = $state(false);
 	let errorMsg = $state('');
-	let previewUrl = $state('');
-	let archivoGuardado = $state('');
+	let originalUrl = $state('');
+	let cuadradoUrl = $state('');
 
 	const def = $derived(STYLES[estilo]);
 
@@ -66,14 +66,12 @@
 		cargando = true;
 		try {
 			const res = await fetch(`/api/generar/${estilo}`, { method: 'POST', body: form });
+			const body = await res.json().catch(() => null);
 			if (!res.ok) {
-				const body = await res.json().catch(() => null);
 				throw new Error(body?.message ?? `Error ${res.status}`);
 			}
-			archivoGuardado = res.headers.get('x-archivo') ?? '';
-			const blob = await res.blob();
-			if (previewUrl) URL.revokeObjectURL(previewUrl);
-			previewUrl = URL.createObjectURL(blob);
+			originalUrl = body.original;
+			cuadradoUrl = body.cuadrado;
 		} catch (err) {
 			errorMsg = err instanceof Error ? err.message : 'Algo falló generando la imagen.';
 		} finally {
@@ -159,12 +157,16 @@
 		<p class="error">{errorMsg}</p>
 	{/if}
 
-	{#if previewUrl}
+	{#if originalUrl}
 		<div class="resultado">
-			<img src={previewUrl} alt="Resultado generado" />
-			{#if archivoGuardado}
-				<p class="hint">Guardado como <code>{archivoGuardado}</code></p>
-			{/if}
+			<div class="resultado-item">
+				<p class="resultado-label">Original</p>
+				<img src={originalUrl} alt="Resultado original" />
+			</div>
+			<div class="resultado-item">
+				<p class="resultado-label">1:1</p>
+				<img src={cuadradoUrl} alt="Resultado recortado a 1:1" class="cuadrado" />
+			</div>
 		</div>
 	{/if}
 </div>
@@ -300,14 +302,27 @@
 	}
 	.resultado {
 		margin-top: 1.5rem;
+		display: flex;
+		gap: 1rem;
+		flex-wrap: wrap;
+	}
+	.resultado-item {
+		flex: 1;
+		min-width: 180px;
+	}
+	.resultado-label {
+		font-size: 0.8rem;
+		opacity: 0.75;
+		margin: 0 0 0.35rem;
 	}
 	.resultado img {
 		max-width: 100%;
 		border-radius: 12px;
 		border: 1px solid rgba(255, 255, 255, 0.25);
 	}
-	.resultado code {
-		font-size: 0.75rem;
-		opacity: 0.8;
+	.resultado img.cuadrado {
+		aspect-ratio: 1 / 1;
+		width: 100%;
+		object-fit: cover;
 	}
 </style>

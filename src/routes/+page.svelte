@@ -73,7 +73,14 @@
 			originalUrl = body.original;
 			cuadradoUrl = body.cuadrado;
 		} catch (err) {
-			errorMsg = err instanceof Error ? err.message : 'Algo falló generando la imagen.';
+			// fetch() lanza un TypeError genérico ("Failed to fetch") cuando la petición
+			// ni siquiera obtiene respuesta (servidor caído, sin conexión, etc.) — se
+			// distingue de los errores que sí vienen con un mensaje real del servidor.
+			if (err instanceof TypeError) {
+				errorMsg = 'No se pudo conectar con el servidor. ¿Sigue corriendo el dev server (npm run dev)?';
+			} else {
+				errorMsg = err instanceof Error ? err.message : 'Algo falló generando la imagen.';
+			}
 		} finally {
 			cargando = false;
 		}

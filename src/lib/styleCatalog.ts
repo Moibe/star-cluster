@@ -51,7 +51,9 @@ export const STYLES: Record<string, StyleDef> = {
 			{ name: 'color', label: 'Color', options: COLORS },
 			{ name: 'hairstyle', label: 'Peinado', options: HAIRSTYLES }
 		]
-	}
+	},
+	secretagent: { label: 'Secret agent', params: [{ name: 'outfit_color', label: 'Color', options: COLORS }] },
+	skier: { label: 'Skier', params: [{ name: 'outfit_color', label: 'Color', options: COLORS }] }
 };
 
 export const STYLE_KEYS = Object.keys(STYLES);

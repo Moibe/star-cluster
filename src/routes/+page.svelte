@@ -131,6 +131,13 @@
 		color: #fff;
 		font: inherit;
 	}
+	/* El popup nativo del <select> lo pinta el SO con fondo blanco pase lo que pase,
+	   así que las <option> necesitan su propio color oscuro (si no, heredan el blanco
+	   del select y quedan invisibles salvo la fila resaltada). */
+	select option {
+		color: #1a1a1a;
+		background: #fff;
+	}
 	button {
 		margin-top: 0.5rem;
 		background: rgba(255, 255, 255, 0.14);

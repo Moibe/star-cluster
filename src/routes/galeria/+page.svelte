@@ -12,6 +12,15 @@
 	let modalIndex: number | null = $state(null);
 	const modalItem = $derived(modalIndex !== null ? itemsPlanos[modalIndex] : null);
 
+	let fotoGrande: string | null = $state(null);
+	function abrirFoto(url: string | null) {
+		if (!url) return;
+		fotoGrande = url;
+	}
+	function cerrarFoto() {
+		fotoGrande = null;
+	}
+
 	function etiqueta(estilo: string) {
 		return STYLES[estilo]?.label ?? estilo;
 	}
@@ -34,6 +43,10 @@
 		modalIndex = (modalIndex - 1 + itemsPlanos.length) % itemsPlanos.length;
 	}
 	function onWindowKeydown(e: KeyboardEvent) {
+		if (fotoGrande !== null) {
+			if (e.key === 'Escape') cerrarFoto();
+			return;
+		}
 		if (modalIndex === null) return;
 		if (e.key === 'Escape') {
 			cerrar();
@@ -68,7 +81,9 @@
 			<section class="grupo">
 				<div class="grupo-header">
 					{#if grupo.foto}
-						<img src={grupo.foto} alt="Foto origen" class="grupo-foto" />
+						<button type="button" class="grupo-foto-btn" onclick={() => abrirFoto(grupo.foto)}>
+							<img src={grupo.foto} alt="Foto origen" class="grupo-foto" />
+						</button>
 					{:else}
 						<div class="grupo-foto grupo-foto-vacia" aria-hidden="true"></div>
 					{/if}
@@ -118,6 +133,21 @@
 	</div>
 {/if}
 
+{#if fotoGrande}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+	<div class="modal-overlay" use:portal onclick={cerrarFoto} role="button" tabindex="0">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-header">
+				<span>Foto origen</span>
+				<button type="button" class="modal-close" onclick={cerrarFoto} aria-label="Cerrar">✕</button>
+			</div>
+			<img src={fotoGrande} alt="Foto origen" />
+			<p class="modal-instrucciones">Esc para cerrar</p>
+		</div>
+	</div>
+{/if}
+
 <style>
 	.galeria {
 		max-width: 900px;
@@ -150,6 +180,20 @@
 		padding-bottom: 0.6rem;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 	}
+	.grupo-foto-btn {
+		all: unset;
+		display: block;
+		cursor: zoom-in;
+		flex-shrink: 0;
+		border-radius: 8px;
+	}
+	.grupo-foto-btn:focus-visible {
+		outline: 2px solid rgba(255, 255, 255, 0.8);
+		outline-offset: 2px;
+	}
+	.grupo-foto-btn:hover .grupo-foto {
+		filter: brightness(1.15);
+	}
 	.grupo-foto {
 		width: 48px;
 		height: 48px;
@@ -157,6 +201,8 @@
 		border-radius: 8px;
 		border: 1px solid rgba(255, 255, 255, 0.3);
 		flex-shrink: 0;
+		display: block;
+		transition: filter 0.15s ease;
 	}
 	.grupo-foto-vacia {
 		background: rgba(255, 255, 255, 0.08);

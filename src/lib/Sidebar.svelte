@@ -53,9 +53,9 @@
         <span class="nav-ico" aria-hidden="true"></span>
         <span>sxm tester</span>
       </a>
-      <a href="/seccion-dos" class="nav-item">
+      <a href="/batch" class="nav-item">
         <span class="nav-ico" aria-hidden="true"></span>
-        <span>Sección dos</span>
+        <span>batch tester</span>
       </a>
       <a href="/seccion-tres" class="nav-item">
         <span class="nav-ico" aria-hidden="true"></span>

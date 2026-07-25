@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import Dropzone from '$lib/Dropzone.svelte';
 	import { portal } from '$lib/portal';
 	import { STYLES, STYLE_KEYS } from '$lib/styleCatalog';
+
+	const INTERVALO_MODAL_MS = 5000;
 
 	type Estado = 'pendiente' | 'cargando' | 'ok' | 'error';
 	type Resultado = {
@@ -15,7 +18,10 @@
 	let file: File | null = $state(null);
 	let procesando = $state(false);
 	let resultados: Resultado[] = $state([]);
-	let modal: { url: string; label: string } | null = $state(null);
+	let modalIndex: number | null = $state(null);
+	let modalTimer: ReturnType<typeof setInterval> | undefined;
+
+	const modalItem = $derived(modalIndex !== null ? resultados[modalIndex] : null);
 
 	async function generarUno(estilo: string) {
 		const idx = resultados.findIndex((r) => r.estilo === estilo);
@@ -42,6 +48,7 @@
 
 	async function generarTodos() {
 		if (!file) return;
+		cerrarModal();
 		procesando = true;
 		resultados = STYLE_KEYS.map((estilo) => ({ estilo, estado: 'pendiente' }));
 
@@ -53,17 +60,46 @@
 		procesando = false;
 	}
 
-	function abrirOriginal(r: Resultado) {
-		if (r.estado === 'ok' && r.original) {
-			modal = { url: r.original, label: STYLES[r.estilo].label };
+	// Busca el siguiente resultado listo ('ok') a partir de `desde`, dando la vuelta
+	// al llegar al final. Si ninguno más está listo, se queda donde estaba.
+	function siguienteListoIndex(desde: number): number | null {
+		const n = resultados.length;
+		for (let i = 1; i <= n; i++) {
+			const idx = (desde + i) % n;
+			if (resultados[idx].estado === 'ok') return idx;
 		}
+		return null;
+	}
+
+	function avanzarModal() {
+		if (modalIndex === null) return;
+		const siguiente = siguienteListoIndex(modalIndex);
+		if (siguiente !== null) modalIndex = siguiente;
+	}
+
+	function reiniciarTimer() {
+		detenerTimer();
+		modalTimer = setInterval(avanzarModal, INTERVALO_MODAL_MS);
+	}
+	function detenerTimer() {
+		clearInterval(modalTimer);
+		modalTimer = undefined;
+	}
+
+	function abrirOriginal(idx: number) {
+		if (resultados[idx]?.estado !== 'ok') return;
+		modalIndex = idx;
+		reiniciarTimer();
 	}
 	function cerrarModal() {
-		modal = null;
+		modalIndex = null;
+		detenerTimer();
 	}
 	function onWindowKeydown(e: KeyboardEvent) {
-		if (modal && e.key === 'Escape') cerrarModal();
+		if (modalIndex !== null && e.key === 'Escape') cerrarModal();
 	}
+
+	onDestroy(detenerTimer);
 </script>
 
 <svelte:window onkeydown={onWindowKeydown} />
@@ -83,7 +119,7 @@
 
 	{#if resultados.length}
 		<div class="grid">
-			{#each resultados as r (r.estilo)}
+			{#each resultados as r, i (r.estilo)}
 				<div class="card">
 					<p class="card-label">{STYLES[r.estilo].label}</p>
 					{#if r.estado === 'pendiente'}
@@ -93,7 +129,7 @@
 							<div class="mini-progreso"><div class="mini-progreso-barra"></div></div>
 						</div>
 					{:else if r.estado === 'ok'}
-						<button type="button" class="card-img-btn" onclick={() => abrirOriginal(r)}>
+						<button type="button" class="card-img-btn" onclick={() => abrirOriginal(i)}>
 							<img src={r.cuadrado} alt={STYLES[r.estilo].label} />
 						</button>
 					{:else if r.estado === 'error'}
@@ -105,16 +141,16 @@
 	{/if}
 </div>
 
-{#if modal}
+{#if modalItem}
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 	<div class="modal-overlay" use:portal onclick={cerrarModal} role="button" tabindex="0">
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
 			<div class="modal-header">
-				<span>{modal.label} — original</span>
+				<span>{STYLES[modalItem.estilo].label} — original</span>
 				<button type="button" class="modal-close" onclick={cerrarModal} aria-label="Cerrar">✕</button>
 			</div>
-			<img src={modal.url} alt="{modal.label} original" />
+			<img src={modalItem.original} alt="{STYLES[modalItem.estilo].label} original" />
 		</div>
 	</div>
 {/if}

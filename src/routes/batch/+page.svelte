@@ -1,13 +1,21 @@
 <script lang="ts">
 	import Dropzone from '$lib/Dropzone.svelte';
+	import { portal } from '$lib/portal';
 	import { STYLES, STYLE_KEYS } from '$lib/styleCatalog';
 
 	type Estado = 'pendiente' | 'cargando' | 'ok' | 'error';
-	type Resultado = { estilo: string; estado: Estado; cuadrado?: string; mensaje?: string };
+	type Resultado = {
+		estilo: string;
+		estado: Estado;
+		cuadrado?: string;
+		original?: string;
+		mensaje?: string;
+	};
 
 	let file: File | null = $state(null);
 	let procesando = $state(false);
 	let resultados: Resultado[] = $state([]);
+	let modal: { url: string; label: string } | null = $state(null);
 
 	async function generarUno(estilo: string) {
 		const idx = resultados.findIndex((r) => r.estilo === estilo);
@@ -20,7 +28,7 @@
 			const res = await fetch(`/api/generar/${estilo}`, { method: 'POST', body: form });
 			const body = await res.json().catch(() => null);
 			if (!res.ok) throw new Error(body?.message ?? `Error ${res.status}`);
-			resultados[idx] = { estilo, estado: 'ok', cuadrado: body.cuadrado };
+			resultados[idx] = { estilo, estado: 'ok', cuadrado: body.cuadrado, original: body.original };
 		} catch (err) {
 			const mensaje =
 				err instanceof TypeError
@@ -44,7 +52,21 @@
 		}
 		procesando = false;
 	}
+
+	function abrirOriginal(r: Resultado) {
+		if (r.estado === 'ok' && r.original) {
+			modal = { url: r.original, label: STYLES[r.estilo].label };
+		}
+	}
+	function cerrarModal() {
+		modal = null;
+	}
+	function onWindowKeydown(e: KeyboardEvent) {
+		if (modal && e.key === 'Escape') cerrarModal();
+	}
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <div class="batch">
 	<h1>Batch tester — Buzito</h1>
@@ -71,7 +93,9 @@
 							<div class="mini-progreso"><div class="mini-progreso-barra"></div></div>
 						</div>
 					{:else if r.estado === 'ok'}
-						<img src={r.cuadrado} alt={STYLES[r.estilo].label} />
+						<button type="button" class="card-img-btn" onclick={() => abrirOriginal(r)}>
+							<img src={r.cuadrado} alt={STYLES[r.estilo].label} />
+						</button>
 					{:else if r.estado === 'error'}
 						<div class="placeholder error-placeholder">{r.mensaje}</div>
 					{/if}
@@ -80,6 +104,20 @@
 		</div>
 	{/if}
 </div>
+
+{#if modal}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+	<div class="modal-overlay" use:portal onclick={cerrarModal} role="button" tabindex="0">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-header">
+				<span>{modal.label} — original</span>
+				<button type="button" class="modal-close" onclick={cerrarModal} aria-label="Cerrar">✕</button>
+			</div>
+			<img src={modal.url} alt="{modal.label} original" />
+		</div>
+	</div>
+{/if}
 
 <style>
 	.batch {
@@ -135,6 +173,12 @@
 		opacity: 0.8;
 		margin: 0;
 	}
+	.card-img-btn {
+		all: unset;
+		display: block;
+		width: 100%;
+		cursor: zoom-in;
+	}
 	.card img {
 		width: 100%;
 		aspect-ratio: 1 / 1;
@@ -142,6 +186,16 @@
 		border-radius: 10px;
 		border: 1px solid rgba(255, 255, 255, 0.25);
 		display: block;
+		transition: filter 0.15s ease;
+	}
+	.card-img-btn:hover img,
+	.card-img-btn:focus-visible img {
+		filter: brightness(1.1);
+	}
+	.card-img-btn:focus-visible {
+		outline: 2px solid rgba(255, 255, 255, 0.8);
+		outline-offset: 2px;
+		border-radius: 10px;
 	}
 	.placeholder {
 		width: 100%;
@@ -183,5 +237,52 @@
 		100% {
 			transform: translateX(350%);
 		}
+	}
+	.modal-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 2rem;
+		z-index: 50;
+		cursor: zoom-out;
+	}
+	.modal-content {
+		max-width: min(90vw, 640px);
+		max-height: 90vh;
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		cursor: default;
+	}
+	.modal-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		color: #fff;
+		font-size: 0.9rem;
+	}
+	.modal-close {
+		background: rgba(255, 255, 255, 0.15);
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		border-radius: 6px;
+		width: 28px;
+		height: 28px;
+		color: #fff;
+		cursor: pointer;
+		line-height: 1;
+	}
+	.modal-close:hover {
+		background: rgba(255, 255, 255, 0.25);
+	}
+	.modal-content img {
+		max-width: 100%;
+		max-height: 80vh;
+		border-radius: 12px;
+		border: 1px solid rgba(255, 255, 255, 0.25);
+		display: block;
+		object-fit: contain;
 	}
 </style>

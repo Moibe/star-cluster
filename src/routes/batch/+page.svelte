@@ -4,7 +4,7 @@
 	import { portal } from '$lib/portal';
 	import { STYLES, STYLE_KEYS } from '$lib/styleCatalog';
 
-	const INTERVALO_MODAL_MS = 5000;
+	const INTERVALO_MODAL_MS = 4000;
 
 	type Estado = 'pendiente' | 'cargando' | 'ok' | 'error';
 	type Resultado = {
@@ -19,6 +19,7 @@
 	let procesando = $state(false);
 	let resultados: Resultado[] = $state([]);
 	let modalIndex: number | null = $state(null);
+	let pausado = $state(false);
 	let modalTimer: ReturnType<typeof setInterval> | undefined;
 
 	const modalItem = $derived(modalIndex !== null ? resultados[modalIndex] : null);
@@ -70,11 +71,34 @@
 		}
 		return null;
 	}
+	// Igual que la anterior pero hacia atrás (para la flecha izquierda).
+	function anteriorListoIndex(desde: number): number | null {
+		const n = resultados.length;
+		for (let i = 1; i <= n; i++) {
+			const idx = (desde - i + n) % n;
+			if (resultados[idx].estado === 'ok') return idx;
+		}
+		return null;
+	}
 
 	function avanzarModal() {
 		if (modalIndex === null) return;
 		const siguiente = siguienteListoIndex(modalIndex);
 		if (siguiente !== null) modalIndex = siguiente;
+	}
+
+	function navegarManual(direccion: 1 | -1) {
+		if (modalIndex === null) return;
+		const destino = direccion === 1 ? siguienteListoIndex(modalIndex) : anteriorListoIndex(modalIndex);
+		if (destino !== null) modalIndex = destino;
+		if (!pausado) reiniciarTimer();
+	}
+
+	function alternarPausa() {
+		if (modalIndex === null) return;
+		pausado = !pausado;
+		if (pausado) detenerTimer();
+		else reiniciarTimer();
 	}
 
 	function reiniciarTimer() {
@@ -89,14 +113,28 @@
 	function abrirOriginal(idx: number) {
 		if (resultados[idx]?.estado !== 'ok') return;
 		modalIndex = idx;
+		pausado = false;
 		reiniciarTimer();
 	}
 	function cerrarModal() {
 		modalIndex = null;
+		pausado = false;
 		detenerTimer();
 	}
 	function onWindowKeydown(e: KeyboardEvent) {
-		if (modalIndex !== null && e.key === 'Escape') cerrarModal();
+		if (modalIndex === null) return;
+		if (e.key === 'Escape') {
+			cerrarModal();
+		} else if (e.key === 'ArrowRight') {
+			e.preventDefault();
+			navegarManual(1);
+		} else if (e.key === 'ArrowLeft') {
+			e.preventDefault();
+			navegarManual(-1);
+		} else if (e.key === ' ' || e.key === 'Spacebar') {
+			e.preventDefault();
+			alternarPausa();
+		}
 	}
 
 	onDestroy(detenerTimer);
@@ -151,6 +189,10 @@
 				<button type="button" class="modal-close" onclick={cerrarModal} aria-label="Cerrar">✕</button>
 			</div>
 			<img src={modalItem.original} alt="{STYLES[modalItem.estilo].label} original" />
+			<p class="modal-instrucciones">
+				← → para moverte · barra espaciadora para {pausado ? 'reanudar' : 'pausar'} · Esc para cerrar
+				{#if pausado}<span class="pausado-tag">⏸ en pausa</span>{/if}
+			</p>
 		</div>
 	</div>
 {/if}
@@ -320,5 +362,16 @@
 		border: 1px solid rgba(255, 255, 255, 0.25);
 		display: block;
 		object-fit: contain;
+	}
+	.modal-instrucciones {
+		margin: 0;
+		text-align: center;
+		font-size: 0.78rem;
+		color: rgba(255, 255, 255, 0.7);
+	}
+	.pausado-tag {
+		margin-left: 0.5rem;
+		color: #fff;
+		font-weight: 600;
 	}
 </style>

@@ -51,7 +51,7 @@
     <nav>
       <a href="/" class="nav-item" aria-current="page">
         <span class="nav-ico" aria-hidden="true"></span>
-        <span>Sección uno</span>
+        <span>sxm tester</span>
       </a>
       <a href="/seccion-dos" class="nav-item">
         <span class="nav-ico" aria-hidden="true"></span>

@@ -21,15 +21,24 @@
 	let modalIndex: number | null = $state(null);
 	let pausado = $state(false);
 	let modalTimer: ReturnType<typeof setInterval> | undefined;
+	let subidaId: number | null = $state(null);
 
 	const modalItem = $derived(modalIndex !== null ? resultados[modalIndex] : null);
 
-	async function generarUno(estilo: string) {
+	// Foto nueva = subida (grupo) nueva en la galería; todos los estilos de este
+	// mismo batch comparten la misma subida.
+	$effect(() => {
+		file;
+		subidaId = null;
+	});
+
+	async function generarUno(estilo: string, idSubida: number) {
 		const idx = resultados.findIndex((r) => r.estilo === estilo);
 		resultados[idx] = { estilo, estado: 'cargando' };
 
 		const form = new FormData();
 		form.append('image', file as File);
+		form.append('subidaId', String(idSubida));
 
 		try {
 			const res = await fetch(`/api/generar/${estilo}`, { method: 'POST', body: form });
@@ -53,10 +62,33 @@
 		procesando = true;
 		resultados = STYLE_KEYS.map((estilo) => ({ estilo, estado: 'pendiente' }));
 
+		// La subida (foto origen) se crea UNA vez, antes de generar nada, para que
+		// los 13 estilos de este batch queden agrupados bajo la misma en la galería.
+		let idSubida: number;
+		try {
+			const form = new FormData();
+			form.append('image', file);
+			const res = await fetch('/api/subida', { method: 'POST', body: form });
+			const body = await res.json().catch(() => null);
+			if (!res.ok) throw new Error(body?.message ?? `Error ${res.status}`);
+			subidaId = body.id;
+			idSubida = body.id;
+		} catch (err) {
+			const mensaje =
+				err instanceof TypeError
+					? 'No se pudo conectar con el servidor.'
+					: err instanceof Error
+						? err.message
+						: 'Algo falló.';
+			resultados = STYLE_KEYS.map((estilo) => ({ estilo, estado: 'error', mensaje }));
+			procesando = false;
+			return;
+		}
+
 		// Secuencial a propósito: van apareciendo una por una en pantalla conforme
 		// se crean, y no saturamos el space de HF con 13 llamadas concurrentes.
 		for (const estilo of STYLE_KEYS) {
-			await generarUno(estilo);
+			await generarUno(estilo, idSubida);
 		}
 		procesando = false;
 	}

@@ -4,8 +4,13 @@
 
 	let { data } = $props();
 
+	// La vista se agrupa por subida (foto origen), pero la navegación del modal
+	// (← →) recorre todo en un solo listado plano, en el mismo orden en que se
+	// muestra en pantalla.
+	const itemsPlanos = $derived(data.grupos.flatMap((g) => g.items));
+
 	let modalIndex: number | null = $state(null);
-	const modalItem = $derived(modalIndex !== null ? data.generaciones[modalIndex] : null);
+	const modalItem = $derived(modalIndex !== null ? itemsPlanos[modalIndex] : null);
 
 	function etiqueta(estilo: string) {
 		return STYLES[estilo]?.label ?? estilo;
@@ -14,19 +19,19 @@
 		return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 	}
 
-	function abrir(idx: number) {
-		modalIndex = idx;
+	function abrir(item: (typeof itemsPlanos)[number]) {
+		modalIndex = itemsPlanos.indexOf(item);
 	}
 	function cerrar() {
 		modalIndex = null;
 	}
 	function siguiente() {
 		if (modalIndex === null) return;
-		modalIndex = (modalIndex + 1) % data.generaciones.length;
+		modalIndex = (modalIndex + 1) % itemsPlanos.length;
 	}
 	function anterior() {
 		if (modalIndex === null) return;
-		modalIndex = (modalIndex - 1 + data.generaciones.length) % data.generaciones.length;
+		modalIndex = (modalIndex - 1 + itemsPlanos.length) % itemsPlanos.length;
 	}
 	function onWindowKeydown(e: KeyboardEvent) {
 		if (modalIndex === null) return;
@@ -47,29 +52,46 @@
 <div class="galeria">
 	<h1>Galería — Buzito</h1>
 	<p class="hint">
-		{#if data.generaciones.length}
-			{data.generaciones.length} generación{data.generaciones.length === 1 ? '' : 'es'} guardada{data.generaciones.length === 1 ? '' : 's'}.
+		{#if data.total}
+			{data.total} generación{data.total === 1 ? '' : 'es'} guardada{data.total === 1 ? '' : 's'}, separadas por foto de origen.
 		{:else}
 			Todavía no hay nada generado.
 		{/if}
 	</p>
 
-	{#if !data.generaciones.length}
+	{#if !data.total}
 		<p class="vacio">
 			Ve a <a href="/">sxm tester</a> o <a href="/batch">batch tester</a> para crear tu primera imagen.
 		</p>
 	{:else}
-		<div class="grid">
-			{#each data.generaciones as g, i (g.id)}
-				<div class="card">
-					<button type="button" class="card-img-btn" onclick={() => abrir(i)}>
-						<img src={g.cuadrado} alt={etiqueta(g.estilo)} />
-					</button>
-					<p class="card-label">{etiqueta(g.estilo)}</p>
-					<p class="card-fecha">{formatearFecha(g.creado)}</p>
+		{#each data.grupos as grupo (grupo.subidaId ?? 'sin-origen')}
+			<section class="grupo">
+				<div class="grupo-header">
+					{#if grupo.foto}
+						<img src={grupo.foto} alt="Foto origen" class="grupo-foto" />
+					{:else}
+						<div class="grupo-foto grupo-foto-vacia" aria-hidden="true"></div>
+					{/if}
+					<div>
+						<p class="grupo-titulo">
+							{grupo.creado ? formatearFecha(grupo.creado) : 'Sin origen registrado'}
+						</p>
+						<p class="grupo-sub">{grupo.items.length} generación{grupo.items.length === 1 ? '' : 'es'}</p>
+					</div>
 				</div>
-			{/each}
-		</div>
+				<div class="grid">
+					{#each grupo.items as g (g.id)}
+						<div class="card">
+							<button type="button" class="card-img-btn" onclick={() => abrir(g)}>
+								<img src={g.cuadrado} alt={etiqueta(g.estilo)} />
+							</button>
+							<p class="card-label">{etiqueta(g.estilo)}</p>
+							<p class="card-fecha">{formatearFecha(g.creado)}</p>
+						</div>
+					{/each}
+				</div>
+			</section>
+		{/each}
 	{/if}
 </div>
 
@@ -116,6 +138,39 @@
 	}
 	.vacio a {
 		color: #fff;
+	}
+	.grupo {
+		margin-bottom: 2rem;
+	}
+	.grupo-header {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin-bottom: 1rem;
+		padding-bottom: 0.6rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+	}
+	.grupo-foto {
+		width: 48px;
+		height: 48px;
+		object-fit: cover;
+		border-radius: 8px;
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		flex-shrink: 0;
+	}
+	.grupo-foto-vacia {
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px dashed rgba(255, 255, 255, 0.25);
+	}
+	.grupo-titulo {
+		margin: 0;
+		font-size: 0.9rem;
+		font-weight: 600;
+	}
+	.grupo-sub {
+		margin: 0;
+		font-size: 0.75rem;
+		opacity: 0.65;
 	}
 	.grid {
 		display: grid;

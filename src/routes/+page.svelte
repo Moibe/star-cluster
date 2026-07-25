@@ -11,6 +11,15 @@
 	let errorMsg = $state('');
 	let originalUrl = $state('');
 	let generacionId = $state(0);
+	let subidaId: number | null = $state(null);
+
+	// Cada vez que se elige una foto nueva, empieza una subida (grupo) nueva en
+	// la galería; mientras sea la misma foto, reusamos el mismo subidaId aunque
+	// generes varios estilos uno tras otro.
+	$effect(() => {
+		selectedFile;
+		subidaId = null;
+	});
 
 	// --- Recorte 1:1 interactivo ---
 	let containerSize = $state(0);
@@ -85,6 +94,18 @@
 		}
 	}
 
+	async function asegurarSubida(): Promise<number> {
+		if (subidaId !== null) return subidaId;
+		const form = new FormData();
+		form.append('image', selectedFile as File);
+		const res = await fetch('/api/subida', { method: 'POST', body: form });
+		const body = await res.json().catch(() => null);
+		if (!res.ok) throw new Error(body?.message ?? `Error ${res.status}`);
+		const id: number = body.id;
+		subidaId = id;
+		return id;
+	}
+
 	async function generar(e: SubmitEvent) {
 		e.preventDefault();
 		errorMsg = '';
@@ -93,15 +114,18 @@
 			return;
 		}
 
-		const form = new FormData();
-		form.append('image', selectedFile);
-		for (const p of def.params) {
-			const v = valoresParam[p.name];
-			if (v) form.append(p.name, v);
-		}
-
 		cargando = true;
 		try {
+			const idSubida = await asegurarSubida();
+
+			const form = new FormData();
+			form.append('image', selectedFile);
+			form.append('subidaId', String(idSubida));
+			for (const p of def.params) {
+				const v = valoresParam[p.name];
+				if (v) form.append(p.name, v);
+			}
+
 			const res = await fetch(`/api/generar/${estilo}`, { method: 'POST', body: form });
 			const body = await res.json().catch(() => null);
 			if (!res.ok) {

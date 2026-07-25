@@ -40,6 +40,16 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	const image = incoming.get('image');
 	if (!(image instanceof File)) throw error(400, 'Falta el archivo "image"');
 
+	// El cliente crea la subida (POST /api/subida) ANTES de llamar aquí y manda
+	// su id — así todas las generaciones de la misma foto quedan agrupadas en la
+	// galería sin depender de que esta ruta "adivine" si debe crear una o no.
+	const subidaId = Number(incoming.get('subidaId'));
+	if (!Number.isInteger(subidaId) || subidaId <= 0) {
+		throw error(400, 'Falta subidaId — crea la subida primero con POST /api/subida');
+	}
+
+	await mkdir(GENERADO_DIR, { recursive: true });
+
 	const forward = new FormData();
 	forward.append('image', image, image.name);
 
@@ -84,13 +94,13 @@ export const POST: RequestHandler = async ({ params, request }) => {
 		})
 		.toBuffer();
 
-	await mkdir(GENERADO_DIR, { recursive: true });
 	const archivoOriginal = await guardar(buffer, ext);
 	const archivoCuadrado = await guardar(cuadradoBuffer, ext);
 
 	const [fila] = await db
 		.insert(generaciones)
 		.values({
+			subidaId,
 			juego: 'buzito',
 			estilo,
 			parametros: JSON.stringify(parametros),
@@ -101,6 +111,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
 	return json({
 		id: fila.id,
+		subidaId,
 		original: `/generado/${archivoOriginal}`,
 		cuadrado: `/generado/${archivoCuadrado}`
 	});

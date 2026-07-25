@@ -3,6 +3,9 @@
 
 	let estilo = $state(STYLE_KEYS[0]);
 	let fileInput: HTMLInputElement | undefined = $state();
+	let selectedFile: File | null = $state(null);
+	let dropPreview = $state('');
+	let dragging = $state(false);
 	let valoresParam: Record<string, string> = $state({});
 	let cargando = $state(false);
 	let errorMsg = $state('');
@@ -11,17 +14,50 @@
 
 	const def = $derived(STYLES[estilo]);
 
+	function setFile(file: File | null) {
+		selectedFile = file;
+		if (dropPreview) URL.revokeObjectURL(dropPreview);
+		dropPreview = file ? URL.createObjectURL(file) : '';
+	}
+
+	function onFileChange(e: Event) {
+		const file = (e.currentTarget as HTMLInputElement).files?.[0] ?? null;
+		setFile(file);
+	}
+
+	function onDragOver(e: DragEvent) {
+		e.preventDefault();
+		dragging = true;
+	}
+	function onDragLeave() {
+		dragging = false;
+	}
+	function onDrop(e: DragEvent) {
+		e.preventDefault();
+		dragging = false;
+		const file = e.dataTransfer?.files?.[0];
+		if (file) setFile(file);
+	}
+	function abrirSelector() {
+		fileInput?.click();
+	}
+	function onDropzoneKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			abrirSelector();
+		}
+	}
+
 	async function generar(e: SubmitEvent) {
 		e.preventDefault();
 		errorMsg = '';
-		const file = fileInput?.files?.[0];
-		if (!file) {
+		if (!selectedFile) {
 			errorMsg = 'Selecciona una imagen primero.';
 			return;
 		}
 
 		const form = new FormData();
-		form.append('image', file);
+		form.append('image', selectedFile);
 		for (const p of def.params) {
 			const v = valoresParam[p.name];
 			if (v) form.append(p.name, v);
@@ -53,7 +89,38 @@
 	<form onsubmit={generar}>
 		<label class="campo">
 			<span>Imagen</span>
-			<input type="file" accept="image/*" bind:this={fileInput} />
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+			<div
+				class="dropzone"
+				class:dragging
+				role="button"
+				tabindex="0"
+				onclick={abrirSelector}
+				onkeydown={onDropzoneKeydown}
+				ondragover={onDragOver}
+				ondragleave={onDragLeave}
+				ondrop={onDrop}
+			>
+				{#if dropPreview}
+					<img src={dropPreview} alt="Vista previa" class="dropzone-preview" />
+					<span class="dropzone-filename">{selectedFile?.name}</span>
+				{:else}
+					<span class="dropzone-icon" aria-hidden="true">
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 16V4M12 4l-4 4M12 4l4 4" />
+							<path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+						</svg>
+					</span>
+					<span>Arrastra una imagen aquí o haz clic para elegir</span>
+				{/if}
+			</div>
+			<input
+				type="file"
+				accept="image/*"
+				bind:this={fileInput}
+				onchange={onFileChange}
+				class="input-oculto"
+			/>
 		</label>
 
 		<label class="campo">
@@ -122,7 +189,51 @@
 		gap: 0.35rem;
 		font-size: 0.9rem;
 	}
-	input,
+	.input-oculto {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	.dropzone {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		min-height: 140px;
+		padding: 1rem;
+		text-align: center;
+		background: rgba(255, 255, 255, 0.08);
+		border: 2px dashed rgba(255, 255, 255, 0.35);
+		border-radius: 12px;
+		color: rgba(255, 255, 255, 0.85);
+		cursor: pointer;
+		transition: background 0.15s ease, border-color 0.15s ease;
+	}
+	.dropzone:hover {
+		background: rgba(255, 255, 255, 0.13);
+		border-color: rgba(255, 255, 255, 0.55);
+	}
+	.dropzone.dragging {
+		background: rgba(255, 255, 255, 0.2);
+		border-color: #fff;
+	}
+	.dropzone-icon {
+		opacity: 0.8;
+	}
+	.dropzone-preview {
+		max-width: 100%;
+		max-height: 160px;
+		border-radius: 8px;
+	}
+	.dropzone-filename {
+		font-size: 0.8rem;
+		opacity: 0.85;
+		word-break: break-all;
+	}
 	select {
 		background: rgba(255, 255, 255, 0.1);
 		border: 1px solid rgba(255, 255, 255, 0.25);

@@ -57,9 +57,9 @@
         <span class="nav-ico" aria-hidden="true"></span>
         <span>batch tester</span>
       </a>
-      <a href="/seccion-tres" class="nav-item">
+      <a href="/galeria" class="nav-item">
         <span class="nav-ico" aria-hidden="true"></span>
-        <span>Sección tres</span>
+        <span>Galería</span>
       </a>
     </nav>
 

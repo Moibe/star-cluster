@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { STYLES, STYLE_KEYS } from '$lib/styleCatalog';
 
+	const CROP_MIN = 0; // por claridad, el offset nunca es negativo
+
 	let estilo = $state(STYLE_KEYS[0]);
 	let fileInput: HTMLInputElement | undefined = $state();
 	let selectedFile: File | null = $state(null);
@@ -10,9 +12,30 @@
 	let cargando = $state(false);
 	let errorMsg = $state('');
 	let originalUrl = $state('');
-	let cuadradoUrl = $state('');
+	let generacionId = $state(0);
+
+	// --- Recorte 1:1 interactivo ---
+	let containerSize = $state(0);
+	let naturalWidth = $state(0);
+	let naturalHeight = $state(0);
+	let rawOffsetX: number | null = $state(null);
+	let rawOffsetY: number | null = $state(null);
+	let arrastrando = false;
+	let dragStart = { x: 0, y: 0, offsetX: 0, offsetY: 0 };
+	let guardandoRecorte = $state(false);
+	let recorteGuardado = $state(false);
 
 	const def = $derived(STYLES[estilo]);
+
+	const escala = $derived(
+		naturalWidth && naturalHeight && containerSize ? containerSize / Math.min(naturalWidth, naturalHeight) : 0
+	);
+	const anchoEscalado = $derived(naturalWidth * escala);
+	const altoEscalado = $derived(naturalHeight * escala);
+	const offsetMaxX = $derived(Math.max(0, anchoEscalado - containerSize));
+	const offsetMaxY = $derived(Math.max(0, altoEscalado - containerSize));
+	const offsetX = $derived(rawOffsetX === null ? offsetMaxX / 2 : Math.min(Math.max(rawOffsetX, CROP_MIN), offsetMaxX));
+	const offsetY = $derived(rawOffsetY === null ? offsetMaxY / 2 : Math.min(Math.max(rawOffsetY, CROP_MIN), offsetMaxY));
 
 	function setFile(file: File | null) {
 		selectedFile = file;
@@ -48,6 +71,56 @@
 		}
 	}
 
+	function onCropImageLoad(e: Event) {
+		const img = e.currentTarget as HTMLImageElement;
+		naturalWidth = img.naturalWidth;
+		naturalHeight = img.naturalHeight;
+	}
+
+	function onCropPointerDown(e: PointerEvent) {
+		arrastrando = true;
+		recorteGuardado = false;
+		dragStart = { x: e.clientX, y: e.clientY, offsetX, offsetY };
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+	}
+	function onCropPointerMove(e: PointerEvent) {
+		if (!arrastrando) return;
+		const dx = e.clientX - dragStart.x;
+		const dy = e.clientY - dragStart.y;
+		rawOffsetX = Math.min(Math.max(dragStart.offsetX - dx, CROP_MIN), offsetMaxX);
+		rawOffsetY = Math.min(Math.max(dragStart.offsetY - dy, CROP_MIN), offsetMaxY);
+	}
+	async function onCropPointerUp(e: PointerEvent) {
+		if (!arrastrando) return;
+		arrastrando = false;
+		try {
+			(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+		} catch {
+			// el pointer ya pudo haberse liberado solo (pointercancel)
+		}
+		await guardarRecorte();
+	}
+
+	async function guardarRecorte() {
+		if (!generacionId || !escala) return;
+		guardandoRecorte = true;
+		try {
+			const left = Math.round(offsetX / escala);
+			const top = Math.round(offsetY / escala);
+			const size = Math.round(containerSize / escala);
+			const res = await fetch(`/api/recorte/${generacionId}`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ left, top, size })
+			});
+			if (res.ok) recorteGuardado = true;
+		} catch {
+			// si esto falla no interrumpimos la vista previa, que ya se ve bien en pantalla
+		} finally {
+			guardandoRecorte = false;
+		}
+	}
+
 	async function generar(e: SubmitEvent) {
 		e.preventDefault();
 		errorMsg = '';
@@ -71,7 +144,12 @@
 				throw new Error(body?.message ?? `Error ${res.status}`);
 			}
 			originalUrl = body.original;
-			cuadradoUrl = body.cuadrado;
+			generacionId = body.id;
+			naturalWidth = 0;
+			naturalHeight = 0;
+			rawOffsetX = null;
+			rawOffsetY = null;
+			recorteGuardado = false;
 		} catch (err) {
 			// fetch() lanza un TypeError genérico ("Failed to fetch") cuando la petición
 			// ni siquiera obtiene respuesta (servidor caído, sin conexión, etc.) — se
@@ -171,8 +249,30 @@
 				<img src={originalUrl} alt="Resultado original" />
 			</div>
 			<div class="resultado-item">
-				<p class="resultado-label">1:1</p>
-				<img src={cuadradoUrl} alt="Resultado recortado a 1:1" class="cuadrado" />
+				<p class="resultado-label">1:1 — arrastra para ajustar</p>
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="crop-box"
+					bind:clientWidth={containerSize}
+					onpointerdown={onCropPointerDown}
+					onpointermove={onCropPointerMove}
+					onpointerup={onCropPointerUp}
+					onpointercancel={onCropPointerUp}
+				>
+					<img
+						src={originalUrl}
+						alt="Ajusta el recorte 1:1"
+						class="crop-img"
+						style="width:{anchoEscalado}px; height:{altoEscalado}px; left:{-offsetX}px; top:{-offsetY}px;"
+						onload={onCropImageLoad}
+						draggable="false"
+					/>
+				</div>
+				{#if guardandoRecorte}
+					<p class="hint">Guardando…</p>
+				{:else if recorteGuardado}
+					<p class="hint">Guardado ✓</p>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -180,7 +280,7 @@
 
 <style>
 	.generar {
-		max-width: 480px;
+		max-width: 640px;
 		margin: 0 auto;
 		padding: 1.5rem 0;
 	}
@@ -191,7 +291,7 @@
 	.hint {
 		opacity: 0.75;
 		font-size: 0.85rem;
-		margin: 0 0 1.25rem;
+		margin: 0.35rem 0 0;
 	}
 	form {
 		display: flex;
@@ -310,26 +410,43 @@
 	.resultado {
 		margin-top: 1.5rem;
 		display: flex;
-		gap: 1rem;
+		gap: 1.25rem;
 		flex-wrap: wrap;
+		align-items: flex-start;
 	}
 	.resultado-item {
 		flex: 1;
-		min-width: 180px;
+		min-width: 220px;
 	}
 	.resultado-label {
 		font-size: 0.8rem;
 		opacity: 0.75;
 		margin: 0 0 0.35rem;
 	}
-	.resultado img {
+	.resultado > .resultado-item > img {
 		max-width: 100%;
 		border-radius: 12px;
 		border: 1px solid rgba(255, 255, 255, 0.25);
+		display: block;
 	}
-	.resultado img.cuadrado {
-		aspect-ratio: 1 / 1;
+	.crop-box {
+		position: relative;
 		width: 100%;
-		object-fit: cover;
+		aspect-ratio: 1 / 1;
+		overflow: hidden;
+		border-radius: 12px;
+		border: 1px solid rgba(255, 255, 255, 0.25);
+		background: rgba(0, 0, 0, 0.15);
+		cursor: grab;
+		touch-action: none;
+		user-select: none;
+	}
+	.crop-box:active {
+		cursor: grabbing;
+	}
+	.crop-img {
+		position: absolute;
+		max-width: none;
+		pointer-events: none;
 	}
 </style>

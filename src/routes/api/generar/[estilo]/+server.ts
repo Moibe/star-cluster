@@ -88,15 +88,19 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	const archivoOriginal = await guardar(buffer, ext);
 	const archivoCuadrado = await guardar(cuadradoBuffer, ext);
 
-	await db.insert(generaciones).values({
-		juego: 'buzito',
-		estilo,
-		parametros: JSON.stringify(parametros),
-		archivoOriginal,
-		archivoCuadrado
-	});
+	const [fila] = await db
+		.insert(generaciones)
+		.values({
+			juego: 'buzito',
+			estilo,
+			parametros: JSON.stringify(parametros),
+			archivoOriginal,
+			archivoCuadrado
+		})
+		.returning({ id: generaciones.id });
 
 	return json({
+		id: fila.id,
 		original: `/generado/${archivoOriginal}`,
 		cuadrado: `/generado/${archivoCuadrado}`
 	});

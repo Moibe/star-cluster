@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Dropzone from '$lib/Dropzone.svelte';
-	import ResultadoGrid, { type ItemResultado } from '$lib/ResultadoGrid.svelte';
+	import ResultadoGrid from '$lib/ResultadoGrid.svelte';
+	import { loteParams, ejecutarLote } from '$lib/runner.svelte';
 	import { STYLES, STYLE_KEYS } from '$lib/styleCatalog';
 
 	// Solo tiene sentido probar parámetros en estilos que de hecho tienen alguno.
@@ -8,14 +9,6 @@
 
 	let file: File | null = $state(null);
 	let estilo = $state(ESTILOS_CON_PARAMS[0]);
-	let procesando = $state(false);
-	let resultados: ItemResultado[] = $state([]);
-	let subidaId: number | null = $state(null);
-
-	$effect(() => {
-		file;
-		subidaId = null;
-	});
 
 	const def = $derived(STYLES[estilo]);
 
@@ -37,73 +30,19 @@
 		def.params.reduce((n, p) => n * p.options.length, 1)
 	);
 
-	async function generarUno(combo: Record<string, string>, idSubida: number) {
-		const key = comboKey(combo);
-		const idx = resultados.findIndex((r) => r.key === key);
-		resultados[idx] = { key, label: comboLabel(combo), estado: 'cargando' };
-
-		const form = new FormData();
-		form.append('image', file as File);
-		form.append('subidaId', String(idSubida));
-		for (const [nombre, valor] of Object.entries(combo)) form.append(nombre, valor);
-
-		try {
-			const res = await fetch(`/api/generar/${estilo}`, { method: 'POST', body: form });
-			const body = await res.json().catch(() => null);
-			if (!res.ok) throw new Error(body?.message ?? `Error ${res.status}`);
-			resultados[idx] = {
-				key,
-				label: comboLabel(combo),
-				estado: 'ok',
-				cuadrado: body.cuadrado,
-				original: body.original
-			};
-		} catch (err) {
-			const mensaje =
-				err instanceof TypeError
-					? 'No se pudo conectar con el servidor.'
-					: err instanceof Error
-						? err.message
-						: 'Algo falló.';
-			resultados[idx] = { key, label: comboLabel(combo), estado: 'error', mensaje };
-		}
-	}
-
 	async function generarTodos() {
 		if (!file) return;
-		procesando = true;
-		const combos = combinaciones();
-		resultados = combos.map((c) => ({ key: comboKey(c), label: comboLabel(c), estado: 'pendiente' }));
-
-		// La subida (foto origen) se crea UNA vez, antes de generar nada, para que
-		// todas las combinaciones queden agrupadas bajo la misma en la galería.
-		let idSubida: number;
-		try {
-			const form = new FormData();
-			form.append('image', file);
-			const res = await fetch('/api/subida', { method: 'POST', body: form });
-			const body = await res.json().catch(() => null);
-			if (!res.ok) throw new Error(body?.message ?? `Error ${res.status}`);
-			subidaId = body.id;
-			idSubida = body.id;
-		} catch (err) {
-			const mensaje =
-				err instanceof TypeError
-					? 'No se pudo conectar con el servidor.'
-					: err instanceof Error
-						? err.message
-						: 'Algo falló.';
-			resultados = combos.map((c) => ({ key: comboKey(c), label: comboLabel(c), estado: 'error', mensaje }));
-			procesando = false;
-			return;
-		}
-
-		// Secuencial, igual que el batch tester: no saturamos el space con llamadas
-		// concurrentes, y así van apareciendo una por una conforme se generan.
-		for (const combo of combos) {
-			await generarUno(combo, idSubida);
-		}
-		procesando = false;
+		const estiloActual = estilo;
+		await ejecutarLote(
+			loteParams,
+			file,
+			combinaciones().map((c) => ({
+				key: comboKey(c),
+				label: comboLabel(c),
+				estilo: estiloActual,
+				campos: c
+			}))
+		);
 	}
 </script>
 
@@ -125,11 +64,11 @@
 		</select>
 	</label>
 
-	<button type="button" onclick={generarTodos} disabled={!file || procesando}>
-		{procesando ? 'Generando…' : `Generar las ${totalCombos} combinaciones`}
+	<button type="button" onclick={generarTodos} disabled={!file || loteParams.procesando}>
+		{loteParams.procesando ? 'Generando…' : `Generar las ${totalCombos} combinaciones`}
 	</button>
 
-	<ResultadoGrid items={resultados} />
+	<ResultadoGrid items={loteParams.resultados} />
 </div>
 
 <style>

@@ -11,7 +11,16 @@
 		await ejecutarLote(
 			loteBatch,
 			file,
-			STYLE_KEYS.map((estilo) => ({ key: estilo, label: STYLES[estilo].label, estilo, campos: {} }))
+			STYLE_KEYS.map((estilo) => ({
+				key: estilo,
+				label: STYLES[estilo].label,
+				estilo,
+				// Omitir el parámetro no es lo mismo que "random": el space lo trata
+				// igual que mandarlo vacío, y eso cae en un color fijo (rosa) en vez
+				// de variar de verdad — así que para los estilos con parámetros se
+				// manda "random" explícito (verificado: sí produce variedad real).
+				campos: Object.fromEntries(STYLES[estilo].params.map((p) => [p.name, 'random']))
+			}))
 		);
 	}
 </script>
